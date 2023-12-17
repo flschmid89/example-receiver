@@ -124,6 +124,8 @@ public:
     std::shared_ptr<zmq::socket_t> startSocket(const std::string port,
                                                const zmq::socket_type type,
                                                const bool bind = false);
+    cv::Mat castMessageToImage(zmq::message_t &recv_msgs, bool &hasData, json &jMeta);
+
     std::optional<std::tuple<bool, cv::Mat, json>> castMessageToImage(std::vector<zmq::message_t> &recv_msgs);
     /**
    * @brief Translates inputs from json
@@ -140,7 +142,7 @@ public:
                           std::shared_ptr<zmq::socket_t> &internsocket,
                           std::atomic<bool> &interruptBool,
                           std::function<std::optional<std::vector<uint8_t>>(cv::Mat image, json meta)> fn = nullptr,
-                          std::function<void(json)> fnJson = nullptr);
+                        std::function<std::optional<std::vector<uint8_t>>(json)> fnJson = nullptr);
 
 
     void loopInteractionsJSON(ZMQConnectInfo zmqci,

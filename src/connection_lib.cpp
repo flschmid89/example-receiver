@@ -25,7 +25,6 @@ ZMQHelper::ZMQHelper(bool sendMsgPack_) : sendMsgPack(sendMsgPack_)
     context = std::make_unique<zmq::context_t>(1);
 }
 
-
 zmq::message_t ZMQHelper::sendJSONWithSubject(std::shared_ptr<zmq::socket_t> &socket,
                                               std::string subject,
                                               json jsonData,
@@ -125,7 +124,6 @@ zmq::message_t ZMQHelper::sendJSON(std::shared_ptr<zmq::socket_t> &socket, json 
     // wait for reply from server
 }
 
-
 json ZMQHelper::parseMessage(const cv::Mat &image, const json &j) const
 {
     std::chrono::milliseconds ms =
@@ -158,7 +156,6 @@ zmq::send_result_t ZMQHelper::zmqSendImage(std::shared_ptr<zmq::socket_t> &socke
                                            const std::string &subject)
 {
 
-
     json dataformat = parseMessage(image, metadata);
 
     size_t frameSize =
@@ -184,7 +181,6 @@ zmq::send_result_t ZMQHelper::zmqSendImage(std::shared_ptr<zmq::socket_t> &socke
         socket->send(zmq::buffer(static_cast<void *>(image.data), frameSize), zmq::send_flags::sndmore);
         result = socket->send(zmq::buffer(dataformat.dump()), zmq::send_flags::none);
     }
-
 
     if (!result)
         LOG_F(ERROR, "timeout");
@@ -219,7 +215,6 @@ zmq::message_t ZMQHelper::sendImage(std::shared_ptr<zmq::socket_t> &socket,
             }
         }
 
-
         return reply;
     }
     catch (const std::exception &e)
@@ -240,7 +235,6 @@ json ZMQHelper::sendImageWithJSONResult(std::shared_ptr<zmq::socket_t> &socket,
 {
 
     std::unique_lock<std::mutex> lock(mtx);
-
 
     auto response = sendImage(socket, image, socketString, metadata, "", bind);
     if (response.size() > 0)
@@ -313,7 +307,8 @@ cv::Mat ZMQHelper::getInference(cv::Mat image, const ZMQConnectInfo &zmqci)
         auto inference = sendImageWithResultImage(sinkSocket, image, zmqci.socketString, {}, zmqci.bind);
 
         resultImage = inference;
-        std::cout << std::endl << "Size: " << inference.size() << std::endl;
+        std::cout << std::endl
+                  << "Size: " << inference.size() << std::endl;
     }
     catch (const std::exception &e)
     {
@@ -334,7 +329,8 @@ int ZMQHelper::getInferenceWithResult(cv::Mat image,
         auto inference = sendImage(socket, image, zmqci.socketString, meta, "", zmqci.bind);
 
         result = std::atoi(static_cast<char *>(inference.data()));
-        std::cout << std::endl << "Result: " << result << std::endl;
+        std::cout << std::endl
+                  << "Result: " << result << std::endl;
     }
     catch (const std::exception &e)
     {
@@ -398,7 +394,7 @@ std::shared_ptr<zmq::socket_t> ZMQHelper::startSocket(const ZMQConnectInfo &zmqc
 
 std::shared_ptr<connect_monitor_t> ZMQHelper::addMonitor(zmq::socket_t *socket, std::string transportProtocol)
 {
-    //const int events = ZMQ_EVENT_CONNECTED;
+    // const int events = ZMQ_EVENT_CONNECTED;
     std::shared_ptr<connect_monitor_t> monitor(nullptr);
     // Monitor sock using the given transport for internal communication
     std::string protocolString = "ipc://conmon";
@@ -471,6 +467,12 @@ std::optional<std::tuple<bool, cv::Mat, json>> ZMQHelper::castMessageToImage(std
     json dataformat = json::parse(recv_msgs[1].to_string());
     cv::Mat image;
 
+    if (!(dataformat.contains("channels") && dataformat.contains("rows") && dataformat.contains("cols")))
+    {
+        LOG_F(WARNING, "No dataformat");
+        return std::nullopt;
+    }
+
     int imageType = getChannelsSize(dataformat.contains("channels") ? static_cast<int>(dataformat["channels"]) : 3);
     size_t frameSize = static_cast<size_t>(dataformat["rows"]) * static_cast<size_t>(dataformat["cols"]) *
                        static_cast<size_t>(dataformat["channels"]);
@@ -489,43 +491,105 @@ std::optional<std::tuple<bool, cv::Mat, json>> ZMQHelper::castMessageToImage(std
     }
 }
 
+cv::Mat ZMQHelper::castMessageToImage(zmq::message_t &recv_msgs, bool &hasData, json &jMeta)
+{
+    jMeta = json::from_msgpack(recv_msgs.to_string());
+    cv::Mat image;
+    hasData = false;
+    if (!jMeta.contains("dataformat"))
+    {
+        LOG_F(WARNING, "No dataformat");
+        return image;
+    }
+    json dataformat = jMeta["dataformat"];
+
+    if (!(dataformat.contains("channels") && dataformat.contains("rows") && dataformat.contains("cols")))
+    {
+        hasData = false;
+        LOG_F(WARNING, "No dataformat");
+        return image;
+    }
+    LOG_F(INFO, "Dataformat %s", dataformat.dump().c_str());
+
+    int imageType = getChannelsSize(dataformat.contains("channels") ? static_cast<int>(dataformat["channels"]) : 3);
+    size_t frameSize = static_cast<size_t>(dataformat["rows"]) * static_cast<size_t>(dataformat["cols"]) *
+                       static_cast<size_t>(dataformat["channels"]);
+
+    if (frameSize != jMeta["data"].get<json::binary_t>().size())
+    {
+        LOG_F(ERROR, "Different sizes of definition and data: %zu --> %zu", frameSize, jMeta["data"].get<json::binary_t>().size());
+        return image;
+    }
+    std::vector<uint8_t> vec = jMeta["data"].get<json::binary_t>();
+    cv::Mat resultImage = cv::Mat(dataformat["rows"], dataformat["cols"], imageType, (void *)vec.data());
+    hasData = true;
+    // jMeta.erase("data");
+    return std::move(resultImage);
+}
 
 void ZMQHelper::loopInteractions(const ZMQConnectInfo &zmqci,
                                  std::shared_ptr<zmq::socket_t> &internsocket,
                                  std::atomic<bool> &interruptBool,
                                  std::function<std::optional<std::vector<uint8_t>>(cv::Mat image, json meta)> fn,
-                                 std::function<void(json)> fnJson)
+                                 std::function<std::optional<std::vector<uint8_t>>(json)> fnJson)
 {
     bool sendResult = startLoop(internsocket, zmqci);
+    zmq::message_t recv_msg;
+
     while (!interruptBool)
     {
+        std::optional<std::vector<uint8_t>> fnResult;
+        std::optional<std::tuple<bool, cv::Mat, json>> castResult;
+        bool hasData = false;
+        cv::Mat image;
+        json jInformation;
         try
         {
-            std::vector<zmq::message_t> recv_msgs;
-            zmq::recv_result_t result = zmq::recv_multipart(*internsocket, std::back_inserter(recv_msgs));
-            if (!result && "recv failed")
-                continue;
-            if (*result != 2)
-                continue;
-
-            auto optionalImage = castMessageToImage(recv_msgs);
-
-            if (optionalImage.has_value())
+            if (sendMsgPack)
             {
-
-                auto [hasInfo, image, jInformation] = optionalImage.value();
-                if (fnJson != nullptr && hasInfo)
-                {
-                    fnJson(jInformation);
-                }
-
-
-                fn(image, jInformation);
+                zmq::recv_result_t result = internsocket->recv(recv_msg);
+                if (!result)
+                    continue;
+                image = castMessageToImage(recv_msg, hasData, jInformation);
             }
 
+            // else
+            // {
+            //     std::vector<zmq::message_t> recv_msgs;
+
+            //     zmq::recv_result_t result = zmq::recv_multipart(*internsocket, std::back_inserter(recv_msgs));
+            //     if (!result)
+            //         continue;
+
+            //     image = castMessageToImage(recv_msgs, hasData);
+            //     // recv_msg = recv_msgs[1];
+            // }
+
+            if (!hasData)
+            {
+
+               
+                    if (fnJson != nullptr)
+                        fnResult = fnJson(jInformation);
+                }
+                else
+                {
+                    fnResult = fn(image, jInformation);
+                }
+            // }
+            // else if (fnJson != nullptr)
+            // {
+            //     json jInformation = json::from_msgpack(recv_msg.to_string());
+            //     fnResult = fnJson(jInformation);
+            // }
 
             if (sendResult)
-                internsocket->send(zmq::buffer("Received"), zmq::send_flags::none);
+            {
+                if (fnResult.has_value())
+                    internsocket->send(zmq::buffer(fnResult.value()), zmq::send_flags::none);
+                else
+                    internsocket->send(zmq::buffer("Received"), zmq::send_flags::none);
+            }
             // std::this_thread::sleep_for(100ms);
         }
         catch (const std::exception &e)
@@ -539,7 +603,6 @@ void ZMQHelper::loopInteractions(const ZMQConnectInfo &zmqci,
     }
 }
 
-
 void ZMQHelper::loopInteractionsJSON(ZMQConnectInfo zmqci,
                                      std::shared_ptr<zmq::socket_t> internsocket,
                                      std::string subject,
@@ -547,9 +610,7 @@ void ZMQHelper::loopInteractionsJSON(ZMQConnectInfo zmqci,
                                      std::function<std::optional<std::vector<uint8_t>>(json meta)> fn)
 {
 
-
     bool sendResult = startLoop(internsocket, zmqci);
-
 
     while (!interruptBool)
     {
