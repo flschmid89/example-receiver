@@ -13,7 +13,7 @@ Opticus::GenericApp blobApp = Opticus::GenericApp();
 ZMQHelper *zmqHelper = new ZMQHelper(true);
 ZMQConnectInfo socketInfo{"tcp://*:4001", zmq::socket_type::rep, true, 1000, 1000};
 
-std::shared_ptr<zmq::socket_t> socket;
+std::shared_ptr<zmq::socket_t> inOutSocket;
 BlobDetector blobDetector;
 std::function<std::optional<std::vector<uint8_t>>(cv::Mat, json)> callbackFunction = [](cv::Mat image, json meta)
 {
@@ -43,7 +43,7 @@ std::function<void(BaseControl)> callbackUpdateControl = [](BaseControl control)
     LOG_F(INFO, "Updated control %s", control.name.c_str());
     if (control.name == "threshold")
     {
-        blobDetector.setThreshold(blobApp.inputs.controlInt[0].value);
+        blobDetector.setThreshold(blobApp.inputs.controlInt[0].get_value());
     }
 };
 
@@ -56,45 +56,20 @@ int main()
     blobApp.version = "0.0.1";
     blobApp.callbackUpdateControl = std::make_unique<std::function<void(BaseControl)>>(callbackUpdateControl);
 
-    blobApp.inputs.controlInt.push_back(Opticus::ControlInt{
+    blobApp.inputs.controlInt["threshold"] = (Opticus::CreateShortControlInt(
         "threshold",
-
         "Threshold for binarization",
-        Opticus::ParameterType::INTEGER,
+        155));
 
-        false,
-        false,
-        1,
-        Opticus::DisplayLevel::BEGINNER,
-        true,
-        127,
-        127,
-        0,
-        255,
-        1,
-        {}, NULL});
-
-    blobApp.outputs.controlJSON.push_back(Opticus::Control<json>{
+    blobApp.outputs.controlJSON["Blobs"] = (Opticus::CreateJSONControl(
         "Blobs",
-
         "Blobs",
-        Opticus::ParameterType::JSON,
+        json::object()));
 
-        false,
-        false,
-        1,
-        Opticus::DisplayLevel::BEGINNER,
-        true,
-        127,
-        127,
-        0,
-        255,
-        1,
-        {}, NULL});
     LOG_F(INFO, "Starting Blob detection");
     LOG_F(INFO, "Inputs %s", blobApp.convertToJSON().dump().c_str());
     std::thread loopThread = std::thread([]()
-                                         { zmqHelper->loopInteractions(socketInfo, socket, interruptBool, callbackFunction, blobApp.callbackJSON); });
+                                         { zmqHelper->loopInteractions(socketInfo, inOutSocket, interruptBool, callbackFunction, blobApp.callbackJSON); });
 
     loopThread.join();
     return 0;
@@ -102,10 +77,10 @@ int main()
 /**
  * This repository contains a C++ application that uses ZeroMQ for communication.
  *
- * The main component of the application is the ZMQHelper class, which is used to establish a ZeroMQ REP (reply) socket connection.
+ * The main component of the application is the ZMQHelper class, which is used to establish a ZeroMQ REP (reply) inOutSocket connection.
  * The connection is established with the address "tcp://ucm-imx8m-plus:4000".
  *
- * The application runs a loop in a separate thread that handles interactions with the ZeroMQ socket.
+ * The application runs a loop in a separate thread that handles interactions with the ZeroMQ inOutSocket.
  * The interactions are handled by the `loopInteractions` method of the ZMQHelper class.
  *
  * The `callbackFunction` is used to process incoming messages. In its current state, it logs the metadata of the incoming message and returns no response.
