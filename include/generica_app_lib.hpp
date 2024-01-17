@@ -17,21 +17,21 @@ namespace Opticus
 
     enum class ParameterType
     {
- INTEGER,
-  STRING,
-  FLOAT,
-  DOUBLE,
-  BOOL,
-  COMMAND,
-  MENU,
-  CATEGORY,
-  REGISTER,
-  UNKNOWN,
-  U8_COMPOUND,
-  U16_COMPOUND,
-  U32_COMPOUND,
-  JSON,
-  SPECIAL_COMPOUND
+        INTEGER,
+        STRING,
+        FLOAT,
+        DOUBLE,
+        BOOL,
+        COMMAND,
+        MENU,
+        CATEGORY,
+        REGISTER,
+        UNKNOWN,
+        U8_COMPOUND,
+        U16_COMPOUND,
+        U32_COMPOUND,
+        JSON,
+        SPECIAL_COMPOUND
     };
 
     enum class DisplayLevel
@@ -95,17 +95,30 @@ namespace Opticus
     template <typename T>
     class Control : public BaseControl
     {
-        private:
-                T value;
+    private:
+        T value;
 
     public:
-        Control() 
+        Control()
         {
             value_ptr = &value;
             value_size = sizeof(T);
         }
+        Control(std::string name, std::string description, T defaultValue, bool readOnly = false, bool disabled = false, unsigned int elems = 1, DisplayLevel displaylevel = DisplayLevel::BEGINNER, bool runtimeParameter = true)
+        {
+            Control();
+            this->name = name;
+            this->description = description;
+            this->defaultValue = defaultValue;
+            this->set_value(defaultValue);
+            this->readOnly = readOnly;
+            this->disabled = disabled;
+            this->elems = elems;
+            this->displaylevel = displaylevel;
+            this->runtimeParameter = runtimeParameter;
+        }
 
-        Control(const Control& other) : BaseControl(other)
+        Control(const Control &other) : BaseControl(other)
         {
             value = other.value;
             defaultValue = other.defaultValue;
@@ -117,7 +130,7 @@ namespace Opticus
                 connectedValue = std::make_unique<T>(*other.connectedValue);
         }
 
-        Control& operator=(const Control& other)
+        Control &operator=(const Control &other)
         {
             if (this != &other)
             {
@@ -156,14 +169,12 @@ namespace Opticus
         {
             return value;
         }
-   
+
         size_t size() const
         {
             return sizeof(T);
         }
     };
-
-
 
     [[maybe_unused]] static Control<int> CreateShortControlInt(std::string name, std::string description, int defaultValue, int min = 0, int max = 255, int step = 1, bool readOnly = false, bool disabled = false, unsigned int elems = 1, DisplayLevel displaylevel = DisplayLevel::BEGINNER, bool runtimeParameter = false)
     {
@@ -171,7 +182,7 @@ namespace Opticus
         control.name = name;
         control.description = description;
         control.defaultValue = defaultValue;
-        control.set_value( defaultValue);
+        control.set_value(defaultValue);
         control.min = min;
         control.max = max;
         control.step = step;
@@ -189,7 +200,7 @@ namespace Opticus
         control.name = name;
         control.description = description;
         control.defaultValue = defaultValue;
-        control.set_value( defaultValue);
+        control.set_value(defaultValue);
         control.readOnly = readOnly;
         control.disabled = disabled;
         control.elems = elems;
@@ -204,7 +215,7 @@ namespace Opticus
         control.name = name;
         control.description = description;
         control.defaultValue = defaultValue;
-        control.set_value( defaultValue);
+        control.set_value(defaultValue);
         control.readOnly = readOnly;
         control.disabled = disabled;
         control.elems = elems;
@@ -374,7 +385,7 @@ namespace Opticus
         }
         bool updateControl(json control, bool useDefault = false)
         {
-            json value = useDefault ? control["default"] : control["value"];  
+            json value = useDefault ? control["default"] : control["value"];
             ParameterType type = control["type"];
             switch (type)
             {
@@ -382,165 +393,191 @@ namespace Opticus
                 if (controlInt.find(control["name"]) != controlInt.end())
                 {
                     controlInt[control["name"]].set_value(value);
+                    return true;
                 }
-                break;
+                else
+                {
+                    return false;
+                }
             case ParameterType::FLOAT:
                 if (controlFloat.find(control["name"]) != controlFloat.end())
                 {
                     controlFloat[control["name"]].set_value(value);
+                    return true;
                 }
-                break;
+                else
+                {
+                    return false;
+                }
             case ParameterType::DOUBLE:
                 if (controlDouble.find(control["name"]) != controlDouble.end())
                 {
                     controlDouble[control["name"]].set_value(value);
+                    return true;
                 }
-                break;
+                else
+                {
+                    return false;
+                }
             case ParameterType::BOOL:
                 if (controlBool.find(control["name"]) != controlBool.end())
                 {
                     controlBool[control["name"]].set_value(value);
+                    return true;
                 }
-
-                break;
-            case ParameterType::STRING:
-                if (controlString.find(control["name"]) != controlString.end())
-                {
-                    controlString[control["name"]].set_value(value);
-                }
-                break;
-            case ParameterType::MENU:
-                if (controlMenu.find(control["name"]) != controlMenu.end())
-                {
-                    controlMenu[control["name"]].set_value(value);
-                }
-                break;
-
-            case ParameterType::JSON:
-                if (controlJSON.find(control["name"]) != controlJSON.end())
-                {
-                    controlJSON[control["name"]].set_value(value);
-                }
-                break;
-            }
-            return false;
-        }
-    };
-
-    template <typename T>
-    static void to_json(json &j, const Control<T> &p) // TODO
-    {
-        j = static_cast<BaseControl>(p);
-        j["value"] = p.get_value();
-        j["default"] = p.defaultValue;
-        j["min"] = p.min;
-        j["max"] = p.max;
-        j["step"] = p.step;
-        j["menu"] = p.menu;
-
-    };
-
-    class CompoundControl : public BaseControl
-    {
-    public:
-        CompoundControl()
-        {
-            value_ptr = nullptr;
-            value_size = 0;
-            type = ParameterType::SPECIAL_COMPOUND;
-        }
-        Controls controls;
-        std::vector<unsigned char> getValue()
-        {
-            const size_t datasize = controls.totalSize();
-            std::vector<unsigned char> data(datasize,0);
-            LOG_F(INFO, "Total size %zu", datasize);
-            auto controlsList = controls.getAllControls();
-            auto position = data.data();
-            for (size_t i = 0; i < controlsList.size(); i++)
-            {
-                auto control = controlsList[i];
-                memcpy(position, control->value_ptr, control->value_size);
-                position += control->value_size;
-            }
-            return data;
-        }
-        void updateValues(json &values)
-        {
-            for(auto &control : values)
-            {
-                LOG_F(INFO, "Updating control %s", control.dump().c_str());
-                controls.updateControl(control, false);
-            }
-        }
-    };
-    [[maybe_unused]] static void to_json(json &j, const CompoundControl &p)
-    {
-        j = static_cast<BaseControl>(p);
-        j["controls"] = p.controls.convertControlsToJson();
-    };
-    class GenericApp
-    {
-    public:
-        Controls inputs;
-        Controls outputs;
-
-        bool outputs_image = true;
-
-        std::string description;
-        std::string name;
-        std::string version;
-        std::unique_ptr<std::function<void(BaseControl)>> callbackUpdateControl;
-
-        json convertToJSON()
-        {
-            json jInfos;
-            jInfos["description"] = description;
-            jInfos["name"] = name;
-            jInfos["version"] = version;
-
-            jInfos["inputs"] = inputs.convertControlsToJson();
-
-            jInfos["outputs"] = {{"outputs_image", outputs_image},
-                                 {"outputs", outputs.convertControlsToJson()}};
-
-            return jInfos;
-        }
-
-        std::function<std::optional<std::vector<uint8_t>>(json)> callbackJSON = [&](json meta)
-        {
-            // LOG_F(INFO, "%s", meta.dump().c_str());
-
-            if (meta.contains("command"))
-            {
-                if (meta["command"] == "infos")
-                {
-                    return std::move(json::to_msgpack(convertToJSON()));
-                }
-                else if (meta["command"] == "stop")
-                {
-                    LOG_F(INFO, "Stop");
-                }
-                else if (meta["command"] == "set_value")
-                {
-                    if (inputs.updateControl(meta["control"]))
+                    else
                     {
-                        LOG_F(INFO, "Updated control %s", meta["control"]["name"].get<std::string>().c_str());
-                        if (callbackUpdateControl)
-                        {
-                            BaseControl control = meta["control"];
-                            (*callbackUpdateControl)(control);
-                        }
-                        return std::move(json::to_msgpack(json{{"status", "ok"}}));
+                        return false;
+                    }
+                case ParameterType::STRING:
+                    if (controlString.find(control["name"]) != controlString.end())
+                    {
+                        controlString[control["name"]].set_value(value);
+                        return true;
                     }
                     else
                     {
-                        return std::move(json::to_msgpack(json{{"status", "error"}}));
+                        return false;
+                    }
+                case ParameterType::MENU:
+                    if (controlMenu.find(control["name"]) != controlMenu.end())
+                    {
+                        controlMenu[control["name"]].set_value(value);
+                        return true;
+                    }
+                    else
+                    {
+                        return false;
+                    }
+
+                case ParameterType::JSON:
+                    if (controlJSON.find(control["name"]) != controlJSON.end())
+                    {
+                        controlJSON[control["name"]].set_value(value);
+                        return true;
+                    }
+                    else
+                    {
+                        return false;
                     }
                 }
+                return false;
             }
-            return std::vector<uint8_t>{};
         };
-    };
 
-}
+        template <typename T>
+        static void to_json(json &j, const Control<T> &p) // TODO
+        {
+            j = static_cast<BaseControl>(p);
+            j["value"] = p.get_value();
+            j["default"] = p.defaultValue;
+            j["min"] = p.min;
+            j["max"] = p.max;
+            j["step"] = p.step;
+            j["menu"] = p.menu;
+        };
+
+        class CompoundControl : public BaseControl
+        {
+        public:
+            CompoundControl()
+            {
+                value_ptr = nullptr;
+                value_size = 0;
+                type = ParameterType::SPECIAL_COMPOUND;
+            }
+            Controls controls;
+            std::vector<unsigned char> getValue()
+            {
+                const size_t datasize = controls.totalSize();
+                std::vector<unsigned char> data(datasize, 0);
+                LOG_F(INFO, "Total size %zu", datasize);
+                auto controlsList = controls.getAllControls();
+                auto position = data.data();
+                for (size_t i = 0; i < controlsList.size(); i++)
+                {
+                    auto control = controlsList[i];
+                    memcpy(position, control->value_ptr, control->value_size);
+                    position += control->value_size;
+                }
+                return data;
+            }
+            void updateValues(json &values)
+            {
+                for (auto &control : values)
+                {
+                    LOG_F(INFO, "Updating control %s", control.dump().c_str());
+                    controls.updateControl(control, false);
+                }
+            }
+        };
+        [[maybe_unused]] static void to_json(json &j, const CompoundControl &p)
+        {
+            j = static_cast<BaseControl>(p);
+            j["controls"] = p.controls.convertControlsToJson();
+        };
+        class GenericApp
+        {
+        public:
+            Controls inputs;
+            Controls outputs;
+
+            bool outputs_image = true;
+
+            std::string description;
+            std::string name;
+            std::string version;
+            std::unique_ptr<std::function<void(BaseControl)>> callbackUpdateControl;
+
+            json convertToJSON()
+            {
+                json jInfos;
+                jInfos["description"] = description;
+                jInfos["name"] = name;
+                jInfos["version"] = version;
+
+                jInfos["inputs"] = inputs.convertControlsToJson();
+
+                jInfos["outputs"] = {{"outputs_image", outputs_image},
+                                     {"outputs", outputs.convertControlsToJson()}};
+
+                return jInfos;
+            }
+
+            std::function<std::optional<std::vector<uint8_t>>(json)> callbackJSON = [&](json meta)
+            {
+                // LOG_F(INFO, "%s", meta.dump().c_str());
+
+                if (meta.contains("command"))
+                {
+                    if (meta["command"] == "infos")
+                    {
+                        return std::move(json::to_msgpack(convertToJSON()));
+                    }
+                    else if (meta["command"] == "stop")
+                    {
+                        LOG_F(INFO, "Stop");
+                    }
+                    else if (meta["command"] == "set_value")
+                    {
+                        if (inputs.updateControl(meta["control"]))
+                        {
+                            LOG_F(INFO, "Updated control %s", meta["control"]["name"].get<std::string>().c_str());
+                            if (callbackUpdateControl)
+                            {
+                                BaseControl control = meta["control"];
+                                (*callbackUpdateControl)(control);
+                            }
+                            return std::move(json::to_msgpack(json{{"status", "ok"}}));
+                        }
+                        else
+                        {
+                            LOG_F(INFO, "Error updating control %s", meta["control"]["name"].get<std::string>().c_str());
+                            return std::move(json::to_msgpack(json{{"status", "error"}}));
+                        }
+                    }
+                }
+                return std::vector<uint8_t>{};
+            };
+        };
+    }

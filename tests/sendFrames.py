@@ -18,8 +18,15 @@ import json
 import msgpack
 import cv2
 import random
+import os
 array = np.ones((1, 4000,3000,3),dtype=np.ubyte)
 
+images = []
+
+
+for image in os.listdir("/home/notavis/barcode-app/tests/images"):
+    image = cv2.imread("/home/notavis/barcode-app/tests/images/"+image,cv2.IMREAD_GRAYSCALE)
+    images.append(image)
 
 def main():
     if len(sys.argv) == 2:
@@ -27,11 +34,11 @@ def main():
         connection_string = sys.argv[1]
         
     else:
-        connection_string="ipc:///tmp/test.0"
+        connection_string="tcp://localhost:4001"
 
     
-    image = cv2.imread("example.png",cv2.IMREAD_GRAYSCALE)
-    image = cv2.cvtColor(image, cv2.COLOR_GRAY2RGB)
+    # image = cv2.imread("/home/notavis/barcode-app/tests/images/2d-barcodes.jpg",cv2.IMREAD_GRAYSCALE)
+    # image = cv2.cvtColor(image, cv2.COLOR_GRAY2RGB)
 
     ctx = zmq.Context()
     s = ctx.socket(zmq.REQ)
@@ -43,28 +50,30 @@ def main():
     print("")
     time.sleep(1.0)
     
-    width = image.shape[1]
-    height = image.shape[0]
-    channels = 1 if len(image.shape) == 2 else image.shape[2]
-    meta = {
-        'dataformat': {
-        'rows': height,
-        'cols': width,
-        'channels': channels,
-        'dtype': str(image.dtype)
+    for image in images:
+    
+        width = image.shape[1]
+        height = image.shape[0]
+        channels = 1 if len(image.shape) == 2 else image.shape[2]
+        meta = {
+            'dataformat': {
+            'rows': height,
+            'cols': width,
+            'channels': channels,
+            'dtype': str(image.dtype)
+            }
         }
-    }
 
-    setValueMeta = {
-        'command':'set_value',
-        'control': {'name': 'threshold', 'value': 0, 'type': 0}
-    }
-    bMeta = msgpack.dumps(meta)
+        setValueMeta = {
+            'command':'set_value',
+            'control': {'name': 'threshold', 'value': 0, 'type': 0}
+        }
+        bMeta = msgpack.dumps(meta)
 
-    try:
-        counter = 0
-        while True:
-            
+        try:
+            counter = 0           
+                
+                
             print('   Topic: IMAGE , msg:%s' % ( json.dumps(meta['dataformat']) ))
 
             meta["data"] = image.tobytes()
@@ -77,7 +86,7 @@ def main():
                 bMeta = msgpack.dumps(meta)
             s.send( bMeta)
 
-            image = np.roll(image, -50, axis=1)
+            # image = np.roll(image, -50, axis=1)
 
             result = s.recv()
             jsonResult = msgpack.unpackb(result, raw=False)
@@ -94,10 +103,10 @@ def main():
             if(counter == 10):
                 counter = 0
 
-            # short wait so we don't hog the cpu
-            # time.sleep(0.4)
-    except KeyboardInterrupt:
-        pass
+                # short wait so we don't hog the cpu
+                # time.sleep(0.4)
+        except KeyboardInterrupt:
+            pass
 
     print("Waiting for message queues to flush...")
     time.sleep(0.5)

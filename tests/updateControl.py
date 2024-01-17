@@ -17,7 +17,25 @@ import zmq
 import json
 import msgpack
 import cv2
+from enum import Enum
 
+class ParameterType(Enum): 
+  INTEGER = 0
+  STRING = 1
+  FLOAT = 2
+  DOUBLE = 3
+  BOOL = 4
+  COMMAND= 5
+  MENU = 6
+  CATEGORY = 7
+  REGISTER = 8
+  UNKNOWN = 9
+  U8_COMPOUND = 10
+  U16_COMPOUND = 11
+  U32_COMPOUND = 12
+  JSON = 13
+  SPECIAL_COMPOUND = 14
+    
 
 def main():
     if len(sys.argv) == 2:
@@ -25,7 +43,7 @@ def main():
         connection_string = sys.argv[1]
         
     else:
-        connection_string="ipc:///tmp/test.0"
+        connection_string="tcp://localhost:4001"
 
     
 
@@ -43,7 +61,7 @@ def main():
 
     meta = {
         'command':'set_value',
-        'control': {'name': 'threshold', 'value': 33, 'type': 0}
+        'control': {'name': 'ENABLE_EAN13', 'value': True, 'type': int(ParameterType.BOOL.value)}
     }
     bMeta = msgpack.dumps(meta)
 

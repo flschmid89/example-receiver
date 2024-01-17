@@ -6,17 +6,27 @@
 #include <memory>
 #include <blobApp_lib.hpp>
 #include <generica_app_lib.hpp>
-
+#include <codecorp.h>
+#include <helper_lib.hpp>
 using namespace Opticus;
+
+void castEnvVariables();
 Opticus::GenericApp blobApp = Opticus::GenericApp();
 
 ZMQHelper *zmqHelper = new ZMQHelper(true);
 ZMQConnectInfo socketInfo{"tcp://*:4001", zmq::socket_type::rep, true, 1000, 1000};
-
+opticus::Helper helper;
+std::string licenseCode = "326D2BC480C943F6B46C";
 std::shared_ptr<zmq::socket_t> inOutSocket;
 BlobDetector blobDetector;
+
+bool renderBoundingBoxes = false;
+
+
 std::function<std::optional<std::vector<uint8_t>>(cv::Mat, json)> callbackFunction = [](cv::Mat image, json meta)
 {
+
+    useEdgeDecoder(image);
 
     json blobs = blobDetector.detectBlobs(image, 127);
 
@@ -34,7 +44,7 @@ std::function<std::optional<std::vector<uint8_t>>(cv::Mat, json)> callbackFuncti
     {
         oss << static_cast<int>(vec[i]) << ' ';
     }
-    LOG_F(INFO, "First 100 bytes: %s", oss.str().c_str());
+    // LOG_F(INFO, "First 100 bytes: %s", oss.str().c_str());
 
     return json::to_msgpack(message);
 };
@@ -50,21 +60,31 @@ std::function<void(BaseControl)> callbackUpdateControl = [](BaseControl control)
 std::atomic<bool> interruptBool = false;
 int main()
 {
-
-    blobApp.description = "Blob detection";
-    blobApp.name = "Blob detection";
+    castEnvVariables();
+    blobApp.description = "Barcode Scanner";
+    blobApp.name = "Scanning different types of barcodes live in video stream";
     blobApp.version = "0.0.1";
     blobApp.callbackUpdateControl = std::make_unique<std::function<void(BaseControl)>>(callbackUpdateControl);
 
-    blobApp.inputs.controlInt["threshold"] = (Opticus::CreateShortControlInt(
-        "threshold",
-        "Threshold for binarization",
-        155));
+  for(auto &decoderAppsSettingsDescription: decoderAppsSettingsDescriptions)
+    {
+        blobApp.inputs.controlBool[decoderAppsSettingsDescription.name] = (Opticus::CreateBoolControl(
+            decoderAppsSettingsDescription.name,
+            decoderAppsSettingsDescription.description,
+            *decoderAppsSettingsDescription.address));
+        blobApp.inputs.controlBool[decoderAppsSettingsDescription.name].connectedValue = std::make_unique<bool>(decoderAppsSettingsDescription.address);
+    }
+    blobApp.inputs.controlBool["output_image"] = (Opticus::CreateBoolControl(
+            "output_image",
+            "Render the bounding boxes in the image",
+            renderBoundingBoxes));
+     blobApp.inputs.controlBool["output_image"].connectedValue = std::make_unique<bool>(&renderBoundingBoxes);
 
-    blobApp.outputs.controlJSON["Blobs"] = (Opticus::CreateJSONControl(
-        "Blobs",
-        "Blobs",
-        json::object()));
+    if (initEdgeDecoder(licenseCode.data()) == -1)
+    {
+        LOG_F(ERROR, "Failed to initialize EdgeDecoder");
+        return -1;
+    }
 
     LOG_F(INFO, "Starting Blob detection");
     LOG_F(INFO, "Inputs %s", blobApp.convertToJSON().dump().c_str());
@@ -73,6 +93,18 @@ int main()
 
     loopThread.join();
     return 0;
+}
+
+void castEnvVariables()
+{
+    const std::string APPNAME = "APP";
+    helper.castEnvString(APPNAME+"_SOCKET", socketInfo.socketString);
+    helper.castEnvString(APPNAME+"_LICENSECODE", licenseCode);
+
+  
+
+ 
+
 }
 /**
  * This repository contains a C++ application that uses ZeroMQ for communication.

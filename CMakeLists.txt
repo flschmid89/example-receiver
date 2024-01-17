@@ -47,7 +47,8 @@ set (APP ${PROJECT}_Executable )
 
 set (APP_SOURCES 
             "main.cpp"
-            "src/connection_lib.cpp")
+            "src/connection_lib.cpp"
+            "src/helper_lib.cpp")
 
 set (APP_INCLUDES "include/")
 
@@ -66,6 +67,11 @@ target_include_directories(${APP} PUBLIC
             ${LOGURU_INCLUDES})
 
 
+
+add_library(EdgeDecoder STATIC IMPORTED)
+set_target_properties(EdgeDecoder PROPERTIES IMPORTED_LOCATION ${CMAKE_SOURCE_DIR}/external/codecorp/lib/libEdgeDecoder.a)
+
+
 target_link_libraries(${APP} PUBLIC 
     loguru     
     cppzmq 
@@ -73,7 +79,7 @@ target_link_libraries(${APP} PUBLIC
     stdc++fs
     nlohmann_json::nlohmann_json 
     ${OpenCV_LIBS} 
-
+    EdgeDecoder
 
 )
 target_compile_features(${APP} PUBLIC cxx_std_20)
