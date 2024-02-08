@@ -25,6 +25,7 @@ struct Result
     CRPOINT center;
 };
 
+
 cv::Point2i convertPoint (const CRPOINT& point)
 {
     return cv::Point2i(point.x, point.y);
@@ -83,7 +84,9 @@ std::vector<DecoderAppsSettingsDescription> decoderAppsSettingsDescriptions = {
 std::vector<Result> results;
 int numDecoded;
 
-void useEdgeDecoder(unsigned char *imgbuf, int xdim, int ydim);
+std::vector<Result> useEdgeDecoder(unsigned char *imgbuf, int width, int height);
+std::vector<Result> useEdgeDecoder(cv::Mat &image);
+
 int initEdgeDecoder(char *keyString);
 int OnResult(int handle);
 int OnProgress(int handle);
@@ -146,7 +149,7 @@ int tryDecoder()
     cv::imwrite("result.jpg", imgbuffer);
 
     /* Call this to release the resources before exiting the decoder */
-    CRD_Destroy(handle);
+    // CRD_Destroy(handle);
 
     return 0;
 }
@@ -181,12 +184,9 @@ int initEdgeDecoder( char *keyString)
     return 0;
 }
 
-&std::vector<Result> useEdgeDecoder(cv::Mat &image)
-{
-    return useEdgeDecoder(image.data, image.cols, image.rows);
-}
 
-&std::vector<Result> useEdgeDecoder(unsigned char *imgbuf, int width, int height)
+
+std::vector<Result> useEdgeDecoder(unsigned char *imgbuf, int width, int height)
 {
    results.clear();
    for(auto &decoderAppsSettingsDescription: decoderAppsSettingsDescriptions)
@@ -212,6 +212,10 @@ int initEdgeDecoder( char *keyString)
 
     return results;
 }
+std::vector<Result> useEdgeDecoder(cv::Mat &image)
+{
+    return useEdgeDecoder(image.data, image.cols, image.rows);
+}
 
 int OnResult(int handle)
 {
@@ -229,6 +233,7 @@ int OnResult(int handle)
         callback();
     }
     results.push_back(std::move(result));
+    LOG_F(INFO, "Decoding time = %lu ms", result.decodeTime);
 
     /* Setting the following will terminate the decoding.  If not set,   */
     /* the decoder will attempt to decode the next barcode in the image. */

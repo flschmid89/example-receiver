@@ -1,0 +1,28 @@
+FROM registry.fls-engineering.de/baseimage:arm64  as BUILDER
+ARG ARCH
+WORKDIR /app
+
+ENV LC_ALL C
+ENV DEBIAN_FRONTEND noninteractive
+
+RUN apt-get update && apt-get install -y  --no-install-recommends meson v4l-utils libv4l-dev nlohmann-json3-dev  libssl-dev && rm -rf /var/lib/apt/lists/*
+
+COPY src  /tmp/cpp/
+
+
+RUN  mkdir /tmp/cpp/build && cd /tmp/cpp/build && \
+    cmake -GNinja -DCMAKE_BUILD_TYPE=Debug -DENABLE_TESTING=OFF .. && cmake --build . && mv /tmp/cpp/build/bin/* /app && rm -rf /tmp
+
+COPY  ./docker /export
+RUN cd /export && bash ./exportDepends.sh /app/Opticus_Barcode && ./exportLinks.sh /app/Opticus_Barcode && cp -R /export /test/ && mkdir /test/app && cp -R /app/* /test/app/
+CMD ["/app/Opticus_Barcode", "-v", "0"]
+FROM debian:bookworm-slim AS app
+
+ENV LD_LIBRARY_PATH=/usr/local/lib
+
+RUN --mount=type=bind,from=BUILDER,source="/test",target=/test mkdir /app && cd /test/export && bash ./importDepends.sh && bash ./importLinks.sh  && cp -R /test/app/* /app/ 
+CMD ["/app/Opticus_Barcode", "-v", "0"]
+
+
+FROM scratch as artifact
+COPY --from=BUILDER /app /app

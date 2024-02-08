@@ -1,0 +1,1 @@
+docker  build --build-arg ARCH=ARM64 -t registry.fls-engineering.de/barcode_app:1.3.0  --target=app -f docker/Dockerfile.arm64  --push .

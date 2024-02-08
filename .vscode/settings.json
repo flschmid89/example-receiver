@@ -78,5 +78,8 @@
         "valarray": "cpp",
         "variant": "cpp"
     },
-    "C_Cpp.default.compileCommands": "/home/aisee/fls/apps/example-receive/external/json/builddir/compile_commands.json"
+    "C_Cpp.default.compileCommands": "/home/aisee/fls/apps/example-receive/external/json/builddir/compile_commands.json",
+    "cmake.environment": {
+        "APP_SOCKET": "tcp://*:4000"
+    }
 }

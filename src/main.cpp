@@ -14,7 +14,7 @@ void castEnvVariables();
 Opticus::GenericApp blobApp = Opticus::GenericApp();
 
 ZMQHelper *zmqHelper = new ZMQHelper(true);
-ZMQConnectInfo socketInfo{"tcp://*:4001", zmq::socket_type::rep, true, 1000, 1000};
+ZMQConnectInfo socketInfo{"tcp://*:4000", zmq::socket_type::rep, true, 1000, 1000};
 opticus::Helper helper;
 std::string licenseCode = "326D2BC480C943F6B46C";
 std::shared_ptr<zmq::socket_t> inOutSocket;
@@ -25,26 +25,42 @@ bool renderBoundingBoxes = false;
 
 std::function<std::optional<std::vector<uint8_t>>(cv::Mat, json)> callbackFunction = [](cv::Mat image, json meta)
 {
+    if(image.channels() > 1)
+    {
+        LOG_F(INFO, "Image is not grayscale, converting to grayscale");
+        cv::cvtColor(image, image, cv::COLOR_BGR2GRAY);
+    }
+    auto barcodeResults = useEdgeDecoder(image.data, image.cols, image.rows);
 
-    useEdgeDecoder(image);
 
-    json blobs = blobDetector.detectBlobs(image, 127);
+
+    json barcodes = json::array();
+
+    for(auto &result: barcodeResults)
+    {
+
+        barcodes.push_back(std::string(result.databuffer));
+        // cv::circle(image, convertPoint(result.center), 5, cv::Scalar(0, 0, 255), -1);
+        // cv::line(image, convertPoint(result.bound[0]), convertPoint(result.bound[1]), cv::Scalar(0, 0, 255), lineThickness);
+        // cv::line(image, convertPoint(result.bound[1]), convertPoint(result.bound[2]), cv::Scalar(0, 0, 255), lineThickness);
+        // cv::line(image, convertPoint(result.bound[2]), convertPoint(result.bound[3]), cv::Scalar(0, 0, 255), lineThickness);
+        // cv::line(image, convertPoint(result.bound[3]), convertPoint(result.bound[0]), cv::Scalar(0, 0, 255), lineThickness);
+    }
+    LOG_F(INFO, "Found %d barcodes", barcodes.size());
+    LOG_F(INFO, "Found %s", barcodes.dump().c_str());
+
+    // json blobs = blobDetector.detectBlobs(image, 127);
 
     json dataformat = zmqHelper->parseMessage(image, nullptr);
     // LOG_F(INFO, "%s", dataformat.dump().c_str());
 
     cv::Mat flat = image.clone().reshape(1, static_cast<int>(image.total() * image.channels()));
     std::vector<uchar> vec = image.isContinuous() ? flat : flat.clone();
-    json message = {{"subject", "result"}, {"json", blobs}, {"dataformat", dataformat}};
+    json message = {{"subject", "result"}, {"json", barcodes}, {"dataformat", dataformat}};
     message["data"] = nlohmann::json::binary(vec);
 
-    // Log the first hundred bytes of vec
-    std::ostringstream oss;
-    for (size_t i = 0; i < std::min<size_t>(100, vec.size()); ++i)
-    {
-        oss << static_cast<int>(vec[i]) << ' ';
-    }
-    // LOG_F(INFO, "First 100 bytes: %s", oss.str().c_str());
+
+   
 
     return json::to_msgpack(message);
 };
@@ -80,6 +96,7 @@ int main()
             renderBoundingBoxes));
      blobApp.inputs.controlBool["output_image"].connectedValue = std::make_unique<bool>(&renderBoundingBoxes);
 
+
     if (initEdgeDecoder(licenseCode.data()) == -1)
     {
         LOG_F(ERROR, "Failed to initialize EdgeDecoder");
@@ -90,8 +107,10 @@ int main()
     LOG_F(INFO, "Inputs %s", blobApp.convertToJSON().dump().c_str());
     std::thread loopThread = std::thread([]()
                                          { zmqHelper->loopInteractions(socketInfo, inOutSocket, interruptBool, callbackFunction, blobApp.callbackJSON); });
-
     loopThread.join();
+
+    CRD_Destroy(handle);
+
     return 0;
 }
 
@@ -101,9 +120,9 @@ void castEnvVariables()
     helper.castEnvString(APPNAME+"_SOCKET", socketInfo.socketString);
     helper.castEnvString(APPNAME+"_LICENSECODE", licenseCode);
 
-  
 
- 
+
+
 
 }
 /**

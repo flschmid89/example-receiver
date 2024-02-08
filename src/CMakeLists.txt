@@ -1,8 +1,9 @@
 cmake_minimum_required(VERSION 3.14)
 
-set(PROJECT "Example_Opticus")
+set(PROJECT "Opticus_Barcode")
 
 project("${PROJECT}_Project" VERSION 1.0.0 LANGUAGES CXX)
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}/bin)
 
 # Global CMake variables are set here
 set(CMAKE_CXX_STANDARD          20)
@@ -42,7 +43,7 @@ set(JSON_Install OFF CACHE INTERNAL "")
 add_subdirectory(external/json)
 
 # Project/Library Names
-set (APP ${PROJECT}_Executable )
+set (APP ${PROJECT} )
 
 
 set (APP_SOURCES 
