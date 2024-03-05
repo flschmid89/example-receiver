@@ -1,6 +1,6 @@
 [submodule "external/json"]
-	path = external/json
+	path = src/external/json
 	url = https://github.com/nlohmann/json
 [submodule "external/loguru"]
-	path = external/loguru
+	path = src/external/loguru
 	url = https://github.com/emilk/loguru

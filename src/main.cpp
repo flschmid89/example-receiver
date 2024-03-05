@@ -51,13 +51,13 @@ std::function<std::optional<std::vector<uint8_t>>(cv::Mat, json)> callbackFuncti
 
     // json blobs = blobDetector.detectBlobs(image, 127);
 
-    json dataformat = zmqHelper->parseMessage(image, nullptr);
-    // LOG_F(INFO, "%s", dataformat.dump().c_str());
+    // json dataformat = zmqHelper->parseMessage(image, nullptr);
+    // // LOG_F(INFO, "%s", dataformat.dump().c_str());
 
-    cv::Mat flat = image.clone().reshape(1, static_cast<int>(image.total() * image.channels()));
-    std::vector<uchar> vec = image.isContinuous() ? flat : flat.clone();
-    json message = {{"subject", "result"}, {"json", barcodes}, {"dataformat", dataformat}};
-    message["data"] = nlohmann::json::binary(vec);
+    // cv::Mat flat = image.clone().reshape(1, static_cast<int>(image.total() * image.channels()));
+    // std::vector<uchar> vec = image.isContinuous() ? flat : flat.clone();
+    json message = {{"subject", "result"}, {"json", barcodes}};
+    // message["data"] = nlohmann::json::binary(vec);
 
 
    
