@@ -493,7 +493,19 @@ std::optional<std::tuple<bool, cv::Mat, json>> ZMQHelper::castMessageToImage(std
 
 cv::Mat ZMQHelper::castMessageToImage(zmq::message_t &recv_msgs, bool &hasData, json &jMeta)
 {
-    jMeta = json::from_msgpack(recv_msgs.to_string());
+    auto start = std::chrono::high_resolution_clock::now();
+    std::string msg = recv_msgs.to_string();
+    auto end = std::chrono::high_resolution_clock::now(); // End time
+    std::chrono::duration<double> elapsed = end - start;  // Time difference
+    LOG_F(INFO, "Time taken to convert message: %f seconds", elapsed.count());
+    start = std::chrono::high_resolution_clock::now(); // Reset start time
+
+    jMeta = json::from_msgpack(msg);
+    end = std::chrono::high_resolution_clock::now();   // End time
+    elapsed = end - start;                             // Time difference
+    LOG_F(INFO, "Time taken to cast message to json: %f seconds", elapsed.count());
+    start = std::chrono::high_resolution_clock::now(); // Reset start time
+
     cv::Mat image;
     hasData = false;
     if (!jMeta.contains("dataformat"))
@@ -523,7 +535,9 @@ cv::Mat ZMQHelper::castMessageToImage(zmq::message_t &recv_msgs, bool &hasData, 
     std::vector<uint8_t> vec = jMeta["data"].get<json::binary_t>();
     cv::Mat resultImage = cv::Mat(dataformat["rows"], dataformat["cols"], imageType, (void *)vec.data());
     hasData = true;
-    // jMeta.erase("data");
+    end = std::chrono::high_resolution_clock::now();   // End time
+    elapsed = end - start;                             // Time difference
+    LOG_F(INFO, "Time taken to cast message to image: %f seconds", elapsed.count());
     return std::move(resultImage);
 }
 
@@ -550,6 +564,7 @@ void ZMQHelper::loopInteractions(const ZMQConnectInfo &zmqci,
                 zmq::recv_result_t result = internsocket->recv(recv_msg);
                 if (!result)
                     continue;
+                LOG_F(INFO, "Got message");
                 image = castMessageToImage(recv_msg, hasData, jInformation);
             }
 
@@ -568,14 +583,13 @@ void ZMQHelper::loopInteractions(const ZMQConnectInfo &zmqci,
             if (!hasData)
             {
 
-               
-                    if (fnJson != nullptr)
-                        fnResult = fnJson(jInformation);
-                }
-                else
-                {
-                    fnResult = fn(image, jInformation);
-                }
+                if (fnJson != nullptr)
+                    fnResult = fnJson(jInformation);
+            }
+            else
+            {
+                fnResult = fn(image, jInformation);
+            }
             // }
             // else if (fnJson != nullptr)
             // {
