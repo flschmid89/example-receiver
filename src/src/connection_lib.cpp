@@ -462,32 +462,37 @@ bool ZMQHelper::startLoop(std::shared_ptr<zmq::socket_t> &socket, const ZMQConne
 
     return canSendResult(socket.get());
 }
-std::optional<std::tuple<bool, cv::Mat, json>> ZMQHelper::castMessageToImage(std::vector<zmq::message_t> &recv_msgs)
+cv::Mat ZMQHelper::castMessageToImage(std::vector<zmq::message_t> &recv_msgs, bool &hasData, json &jMeta)
 {
-    json dataformat = json::parse(recv_msgs[1].to_string());
-    cv::Mat image;
+    jMeta = json::parse(recv_msgs[1].to_string());
+    json dataformat = jMeta["dataformat"];
 
+    cv::Mat image;
+    hasData = false;
+    LOG_F(INFO, "%s", jMeta.dump().c_str());
     if (!(dataformat.contains("channels") && dataformat.contains("rows") && dataformat.contains("cols")))
     {
         LOG_F(WARNING, "No dataformat");
-        return std::nullopt;
+        return image;
     }
 
     int imageType = getChannelsSize(dataformat.contains("channels") ? static_cast<int>(dataformat["channels"]) : 3);
     size_t frameSize = static_cast<size_t>(dataformat["rows"]) * static_cast<size_t>(dataformat["cols"]) *
                        static_cast<size_t>(dataformat["channels"]);
+            LOG_F(INFO, "Size %d", recv_msgs[0].size());
+
     if (frameSize == recv_msgs[0].size())
     {
-        return std::tuple<bool, cv::Mat, json>{
-            dataformat.contains("info"),
-            cv::Mat(dataformat["rows"], dataformat["cols"], imageType, recv_msgs[0].data()),
-            dataformat};
+        hasData = true;
+
+               return image;
+
     }
     else
     {
 
         LOG_F(ERROR, "Different sizes of definition and data: %zu --> %zu", frameSize, recv_msgs[0].size());
-        return std::nullopt;
+        return image;
     }
 }
 
@@ -568,17 +573,16 @@ void ZMQHelper::loopInteractions(const ZMQConnectInfo &zmqci,
                 image = castMessageToImage(recv_msg, hasData, jInformation);
             }
 
-            // else
-            // {
-            //     std::vector<zmq::message_t> recv_msgs;
+            else
+            {
+                std::vector<zmq::message_t> recv_msgs;
 
-            //     zmq::recv_result_t result = zmq::recv_multipart(*internsocket, std::back_inserter(recv_msgs));
-            //     if (!result)
-            //         continue;
-
-            //     image = castMessageToImage(recv_msgs, hasData);
-            //     // recv_msg = recv_msgs[1];
-            // }
+                zmq::recv_result_t result = zmq::recv_multipart(*internsocket, std::back_inserter(recv_msgs));
+                if (!result)
+                    continue;
+                image = castMessageToImage(recv_msgs,hasData, jInformation);
+                
+            }
 
             if (!hasData)
             {

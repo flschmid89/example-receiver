@@ -126,7 +126,7 @@ public:
                                                const bool bind = false);
     cv::Mat castMessageToImage(zmq::message_t &recv_msgs, bool &hasData, json &jMeta);
 
-    std::optional<std::tuple<bool, cv::Mat, json>> castMessageToImage(std::vector<zmq::message_t> &recv_msgs);
+    cv::Mat castMessageToImage(std::vector<zmq::message_t> &recv_msgs, bool &hasData, json &jMeta);
     /**
    * @brief Translates inputs from json
    * 

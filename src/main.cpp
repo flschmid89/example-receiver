@@ -13,7 +13,7 @@ using namespace Opticus;
 void castEnvVariables();
 Opticus::GenericApp blobApp = Opticus::GenericApp();
 
-ZMQHelper *zmqHelper = new ZMQHelper(true);
+ZMQHelper *zmqHelper = new ZMQHelper(false);
 ZMQConnectInfo socketInfo{"tcp://*:4000", zmq::socket_type::rep, true, 1000, 1000};
 opticus::Helper helper;
 std::string licenseCode = "326D2BC480C943F6B46C";
